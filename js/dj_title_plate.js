@@ -1,5 +1,244 @@
 import { app } from "/scripts/app.js";
 
+// ── 双击编辑：视口换算（照抄小竹光，Vue 版 ComfyUI 下最稳）──
+function getNodeViewportRect(node) {
+  const cv = (window.app && window.app.canvas) || LGraphCanvas.active_canvas;
+  if (!cv?.canvas?.isConnected) return null;
+  try {
+    const rect = cv.canvas.getBoundingClientRect();
+    const scale = Number(cv.ds?.scale) || 1;
+    return { left: rect.left, top: rect.top, scale };
+  } catch (e) {
+    return null;
+  }
+}
+
+// ── 双击编辑：Vue DOM 层捕获绑定（LiteGraph 的 onDblClick 在 Vue 渲染下不触发）──
+function attachVueDblClick(node) {
+  if (node._vueDblBound) return;
+  node._vueDblBound = true;
+  let tries = 0;
+  const timer = setInterval(() => {
+    if (!node._vueDblBound || ++tries > 20) {
+      clearInterval(timer);
+      return;
+    }
+    if (node._removed) {
+      node._vueDblBound = false;
+      clearInterval(timer);
+      return;
+    }
+    const el =
+      document.querySelector(`.litegraph-node[data-node-id="${node.id}"]`) ||
+      document.querySelector(`[data-node-id="${node.id}"]`);
+    if (!el) return;
+    node._vueDblEl = el;
+    const handler = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (node.isEditing) return;
+      fontBar.close();
+      createTitleEditor(node);
+    };
+    el.addEventListener("dblclick", handler, true);
+    node._vueDblHandler = handler;
+    clearInterval(timer);
+  }, 100);
+}
+
+function detachVueDblClick(node) {
+  if (!node._vueDblEl) {
+    node._vueDblBound = false;
+    return;
+  }
+  if (node._vueDblHandler) node._vueDblEl.removeEventListener("dblclick", node._vueDblHandler, true);
+  node._vueDblEl = null;
+  node._vueDblHandler = null;
+  node._vueDblBound = false;
+}
+
+// ── 双击编辑：创建 / 提交 / 移除（核心抄小竹光，去掉工具条）──
+function createTitleEditor(node) {
+  if (node.editTextarea) removeTitleEditor(node);
+  const vr = getNodeViewportRect(node);
+  if (!vr) return;
+  const sc = Math.max(0.2, vr.scale);
+
+  const fontSize = Math.max(node.properties.fontSize || 1, 1);
+  const fontFamily = node.properties.fontFamily ?? "Arial";
+  const padding = Number(node.properties.padding) ?? 0;
+  const fontColor = node.properties.fontColor || "#ffffff";
+  const align = node.properties.textAlign || "left";
+
+  // 选中高亮样式（只注入一次）
+  if (!document.getElementById("dj-title-edit-selection-style")) {
+    const s = document.createElement("style");
+    s.id = "dj-title-edit-selection-style";
+    s.textContent =
+      "[data-dj-title-edit] textarea::selection,[data-dj-title-edit] textarea::-moz-selection{color:#fff!important;background:#4a9eff!important;}";
+    document.head.appendChild(s);
+  }
+
+  const cv0 = (window.app && window.app.canvas) || LGraphCanvas.active_canvas;
+  const ds0 = cv0?.ds ?? {};
+  const ox0 = Number(ds0.offset?.[0]) || 0;
+  const oy0 = Number(ds0.offset?.[1]) || 0;
+
+  const container = document.createElement("div");
+  container.dataset.djTitleEdit = String(node.id);
+  container.style.cssText = `position:fixed;left:${vr.left + (node.pos[0] + ox0) * sc}px;top:${vr.top + (node.pos[1] + oy0) * sc}px;width:${Math.max(60, node.size[0] * sc)}px;z-index:100000;border:1px dashed rgba(74,158,255,0.5);background:rgba(0,0,0,0.15);`;
+  container.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+
+  // 滚轮转发给画布（在面板空白处滚动 = 缩放画布）
+  container.addEventListener("wheel", (e) => {
+    if (e.target === ta) return;
+    const cv = (window.app && window.app.canvas) || LGraphCanvas.active_canvas;
+    if (!cv?.canvas) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cv.canvas.dispatchEvent(new WheelEvent("wheel", {
+      deltaY: e.deltaY, deltaX: e.deltaX,
+      clientX: e.clientX, clientY: e.clientY,
+      ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey,
+      bubbles: true, cancelable: true,
+    }));
+  }, { capture: true, passive: false });
+
+  // 透明文字 textarea：只负责输入与光标定位，视觉由画布渲染
+  const ta = document.createElement("textarea");
+  ta.value = node.getText();
+  ta.spellcheck = false;
+  ta.style.cssText = [
+    "width:100%",
+    `height:${Math.max(30, node.size[1] * sc)}px`,
+    "outline:none;border:none;resize:none;box-sizing:border-box;",
+    `padding:0 ${padding * sc}px;`,
+    "background:transparent;color:transparent;-webkit-text-fill-color:transparent;",
+    `caret-color:${fontColor === "#ffffff" ? "#00ff6a" : fontColor};`,
+    `text-align:${align};`,
+    `font: ${fontSize * sc}px ${fontFamily};`,
+    `line-height:${1.3 * fontSize * sc}px;`,
+    "overflow:hidden;white-space:pre-wrap;word-break:break-all;position:relative;",
+  ].join("");
+
+  container.appendChild(ta);
+
+
+  node.editTextarea = container;
+  node._editTaEl = ta;
+  node.isEditing = true;
+  document.body.appendChild(container);
+
+  // 进入编辑直接输入，不全选（避免选中高亮和画布文字错位产生重影）
+  requestAnimationFrame(() => {
+    ta.focus({ preventScroll: true });
+    const len = ta.value.length;
+    ta.setSelectionRange(len, len);
+  });
+
+  // rAF 跟位：缩放/平移时编辑器始终贴在节点上
+  const posTick = () => {
+    if (!node.editTextarea) { node._posRaf = null; return; }
+    const nr = getNodeViewportRect(node);
+    if (nr) {
+      const s = Math.max(0.2, nr.scale);
+      // 节点左上角（画布坐标 pos）→ 窗口坐标：rect + (pos + offset) * scale
+      const cv = (window.app && window.app.canvas) || LGraphCanvas.active_canvas;
+      const ds = cv?.ds ?? {};
+      const ox = Number(ds.offset?.[0]) || 0;
+      const oy = Number(ds.offset?.[1]) || 0;
+      container.style.left = `${nr.left + (node.pos[0] + ox) * s}px`;
+      container.style.top = `${nr.top + (node.pos[1] + oy) * s}px`;
+      container.style.width = `${Math.max(60, node.size[0] * s)}px`;
+      ta.style.height = `${Math.max(30, node.size[1] * s)}px`;
+      ta.style.fontSize = `${fontSize * s}px`;
+      ta.style.lineHeight = `${1.3 * fontSize * s}px`;
+    }
+    node._posRaf = requestAnimationFrame(posTick);
+  };
+  node._posRaf = requestAnimationFrame(posTick);
+
+  const saveClose = () => {
+    if (!node.editTextarea) return;
+    node.title = ta.value.replace(/\n/g, "\\n");
+    removeTitleEditor(node);
+    node.setDirtyCanvas?.(true, true);
+    window.app?.graph?.setDirtyCanvas(true);
+  };
+
+  // 输入实时写回，画布同步显示（尺寸随之变化）
+  ta.addEventListener("input", () => {
+    node.title = ta.value.replace(/\n/g, "\\n");
+    const cv = (window.app && window.app.canvas) || LGraphCanvas.active_canvas;
+    cv?.graph?.setDirtyCanvas(true);
+  });
+
+  ta.addEventListener("compositionstart", () => { node._composing = true; });
+  ta.addEventListener("compositionend", () => { node._composing = false; });
+  ta.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") removeTitleEditor(node);
+    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveClose(); }
+    else if (e.key === "Enter" && e.shiftKey) { /* 允许换行 */ }
+    e.stopPropagation();
+  });
+
+  // 点画布空白处：保存并关闭（点在编辑器内不关）
+  node._docMouseDown = (e) => {
+    if (!node.isEditing || !node.editTextarea) return;
+    let el = e.target;
+    node._mouseDownInEditor = false;
+    while (el) {
+      if (el === container) { node._mouseDownInEditor = true; break; }
+      el = el.parentElement;
+    }
+  };
+  node._docClickHandler = (e) => {
+    if (!node.isEditing || !node.editTextarea) return;
+    if (node._mouseDownInEditor) { node._mouseDownInEditor = false; return; }
+    let el = e.target;
+    while (el) {
+      if (el === container) return;
+      el = el.parentElement;
+    }
+    saveClose();
+  };
+  setTimeout(() => {
+    if (node.isEditing) {
+      document.addEventListener("click", node._docClickHandler, true);
+      document.addEventListener("mousedown", node._docMouseDown, true);
+    }
+  }, 200);
+
+  // 失焦兜底：焦点被抢走时拉回来；若跑到了别的节点 DOM 上则保存关闭
+  let focusTries = 0;
+  const focusTick = () => {
+    if (!node.editTextarea || node._removed) { node._focusGuard = null; return; }
+    if (node._composing) { node._focusGuard = requestAnimationFrame(focusTick); return; }
+    const ae = document.activeElement;
+    if (ae !== ta) {
+      if (++focusTries > 8) { saveClose(); return; }
+      const onOtherNode = ae && ae.closest?.('[data-node-id]') && !container.contains(ae);
+      if (onOtherNode) { saveClose(); return; }
+      ta.focus({ preventScroll: true });
+    } else {
+      focusTries = 0;
+    }
+    node._focusGuard = requestAnimationFrame(focusTick);
+  };
+  node._focusGuard = requestAnimationFrame(focusTick);
+}
+
+function removeTitleEditor(node) {
+  if (node._focusGuard) { cancelAnimationFrame(node._focusGuard); node._focusGuard = null; }
+  if (node._posRaf) { cancelAnimationFrame(node._posRaf); node._posRaf = null; }
+  if (node._docClickHandler) { document.removeEventListener("click", node._docClickHandler, true); node._docClickHandler = null; }
+  if (node._docMouseDown) { document.removeEventListener("mousedown", node._docMouseDown, true); node._docMouseDown = null; }
+  if (node.editTextarea) { node.editTextarea.remove(); node.editTextarea = null; }
+  node._editTaEl = null;
+  node.isEditing = false;
+}
+
 // ── CSS 注入 ──────────────────────────────────────────────
 const style = document.createElement("style");
 style.textContent = `
@@ -40,22 +279,6 @@ style.textContent = `
   .dj-title-plate-help-dialog footer button:hover { background: #303030; }
   body.dj-title-plate-dialog-open > *:not(.dj-title-plate-help-dialog) {
     filter: blur(5px);
-  }
-  /* 双击原地编辑的输入框 */
-  .dj-title-plate-editor {
-    position: absolute;
-    z-index: 1000;
-    border: 2px solid #4a9eff;
-    border-radius: 4px;
-    background: rgba(30, 30, 30, 0.95);
-    color: #fff;
-    outline: none;
-    resize: none;
-    overflow: hidden;
-    padding: 4px 6px;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    line-height: 1.3;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
   }
 `;
 
@@ -340,7 +563,9 @@ window.addEventListener("pointerdown", (event) => {
     node = null;
   }
   if (node instanceof DJTitlePlate) {
-    // 记录双击判定：第二次点击交给 onDblClick（文字编辑）
+    // 编辑中：不弹横条（编辑器自己管关闭）
+    if (node.isEditing) return;
+    // 记录双击判定：第二次点击交给 onDblClick（文字编辑），不弹横条
     const last = fontBar._lastClick;
     const isDouble = last && last.node === node && event.timeStamp - last.timeStamp < 400;
     fontBar._lastClick = { node, timeStamp: event.timeStamp };
@@ -422,7 +647,6 @@ class DJTitlePlate extends LGraphNode {
     this.resizable = false;
     this.isVirtualNode = true;
     this.widgets = [];
-    this._editing = false;
   }
 
   // 当前文字（支持 \n 换行）
@@ -470,7 +694,7 @@ class DJTitlePlate extends LGraphNode {
       ctx.fill();
     }
 
-    // 文字
+    // 文字：水平按 textAlign，垂直始终在虚框内居中
     let textX = padding;
     if (this.properties.textAlign === "center") {
       ctx.textAlign = "center";
@@ -482,71 +706,57 @@ class DJTitlePlate extends LGraphNode {
       ctx.textAlign = "left";
     }
 
-    ctx.textBaseline = "top";
+    ctx.textBaseline = "alphabetic";
     ctx.fillStyle = fontColor;
-    let currentY = padding;
+
+    // 用真实字形度量做视觉居中（middle 基线对中文等字体偏上，下方会空太多）
+    const lineHeight = fontSize * 1.3;
+    let firstLineTop = 0;
+    if (lines.length > 0) {
+      const sample = lines[0] || " ";
+      const m = ctx.getTextBoundingBox ? ctx.getTextBoundingBox(sample) : null;
+      const asc = m ? m.fontBoundingBoxAscent : fontSize * 0.8;
+      const desc = m ? m.fontBoundingBoxDescent : fontSize * 0.2;
+      firstLineTop = (this.size[1] - lineHeight * lines.length) / 2 + asc;
+    }
+    let currentY = firstLineTop; // 首行基线（alphabetic）
     for (let i = 0; i < lines.length; i++) {
       ctx.fillText(lines[i] || " ", textX, currentY);
-      currentY += fontSize * 1.3;
+      currentY += lineHeight;
     }
     ctx.restore();
   }
 
-  // ── 双击：原地弹出输入框直接改文字 ─────────────────────
-  onDblClick(event, pos, canvas) {
-    if (this._editing) return;
-    fontBar.close();
-    this._startInlineEdit(canvas);
+  // ── 双击：手动判定（LiteGraph 层，Vue 渲染下主路是 attachVueDblClick）──
+  onMouseDown(e, pos) {
+    if (this.isEditing) return true;
+    if (e.button !== 0) return false;
+    const now = Date.now();
+    if (this._lastClickTime && now - this._lastClickTime < 300) {
+      this._lastClickTime = 0;
+      fontBar.close();
+      createTitleEditor(this);
+      return true;
+    }
+    this._lastClickTime = now;
+    return false;
   }
 
-  _startInlineEdit(canvas) {
-    this._editing = true;
-    const graphCanvas = canvas || LGraphCanvas.active_canvas;
+  onDblClick(event, pos, canvas) {
+    if (this.isEditing) return true;
+    fontBar.close();
+    createTitleEditor(this);
+    return true;
+  }
 
-    // 节点左上角在屏幕上的位置
-    const topLeft = graphCanvas.canvasPosToDom([this.pos[0], this.pos[1]]);
-    const fontSize = Math.max(this.properties.fontSize || 1, 1);
-    const fontFamily = this.properties.fontFamily ?? "Arial";
-    const padding = Number(this.properties.padding) ?? 0;
+  // 上屏后绑 Vue DOM 层 dblclick（主路）
+  onNodeCreated() {
+    attachVueDblClick(this);
+  }
 
-    const ta = document.createElement("textarea");
-    ta.className = "dj-title-plate-editor";
-    ta.value = this.getText();
-    ta.style.left = `${topLeft[0] + 4}px`;
-    ta.style.top = `${topLeft[1] + 4}px`;
-    ta.style.font = `${fontSize}px ${fontFamily}`;
-    ta.style.color = this.properties.fontColor || "#ffffff";
-    ta.style.minWidth = "120px";
-    ta.style.minHeight = `${this.size[1] + 8}px`;
-
-    // 编辑期间暂停画布重绘，避免输入框位置漂移
-    graphCanvas.pause_rendering();
-
-    const finish = (commit) => {
-      if (commit) {
-        this.title = ta.value.replace(/\n/g, "\\n");
-      }
-      ta.remove();
-      this._editing = false;
-      graphCanvas.resume_rendering();
-      graphCanvas.draw(true); // 强制重绘一次
-    };
-
-    ta.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        finish(true);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        finish(false);
-      }
-      e.stopPropagation();
-    });
-    ta.addEventListener("blur", () => finish(true));
-
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
+  onRemoved() {
+    detachVueDblClick(this);
+    if (this.isEditing) removeTitleEditor(this);
   }
 
   inResizeCorner(x, y) {
