@@ -242,8 +242,9 @@ function removeTitleEditor(node) {
 // ── CSS 注入 ──────────────────────────────────────────────
 const style = document.createElement("style");
 style.textContent = `
-  /* 默认隐藏虚框（showBorder=false） */
-  .litegraph-node[data-dj-noborder="true"] {
+  /* 默认隐藏虚框（showBorder=false）：外层 + 所有子元素 */
+  .litegraph-node[data-dj-noborder="true"],
+  .litegraph-node[data-dj-noborder="true"] * {
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
@@ -668,6 +669,7 @@ class DJTitlePlate extends LGraphNode {
     this.color = "#fff0";
     this.bgcolor = "#fff0";
 
+
     const fontColor = this.properties.fontColor || "#ffffff";
     const backgroundColor = this.properties.backgroundColor || "";
     const fontSize = Math.max(this.properties.fontSize || 0, 1);
@@ -751,24 +753,24 @@ class DJTitlePlate extends LGraphNode {
     return true;
   }
 
-  // 同步虚框显示状态到 Vue DOM
+  // 同步虚框显示状态（canvas 层面，draw 里处理）
   _syncBorderVisibility() {
-    const el = this._vueDblEl ||
-      document.querySelector(`.litegraph-node[data-node-id="${this.id}"]`) ||
-      document.querySelector(`[data-node-id="${this.id}"]`);
-    if (el) {
-      el.dataset.djNoborder = String(!this.properties.showBorder);
-    }
+    this.setDirtyCanvas?.(true, true);
   }
 
   // 上屏后绑 Vue DOM 层 dblclick（主路）+ 虚框状态
   onNodeCreated() {
     attachVueDblClick(this);
-    // 等 Vue DOM 渲染完再同步
-    requestAnimationFrame(() => this._syncBorderVisibility());
+    // 轮询等 Vue DOM 渲染完再同步虚框状态
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (++tries > 50 || this._removed) { clearInterval(timer); return; }
+      this._syncBorderVisibility();
+      if (this._vueDblEl) clearInterval(timer);
+    }, 100);
   }
 
-  onPropertyChange(name, value) {
+  onPropertyChanged(name, value) {
     if (name === "showBorder") {
       this._syncBorderVisibility();
     }
@@ -805,15 +807,16 @@ class DJTitlePlate extends LGraphNode {
   }
 }
 
-// ── 劫持 drawNode：让 Label 用我们的 draw ─────────────────
+// ── 劫持 drawNode：完全跳过原版，自己画（彻底杜绝灰虚框）──────
+// 原理：LiteGraph 的 drawNode 内部会调 drawNodeShape 画选中态虚框，
+// 且 Vue 版下 node.selected / show_border 等属性已失效。
+// 最稳的做法：不调原版，自己画背景 + 文字，虚框自然不存在。
 const oldDrawNode = LGraphCanvas.prototype.drawNode;
 LGraphCanvas.prototype.drawNode = function (node, ctx) {
   if (node.constructor === DJTitlePlate) {
-    node.bgcolor = "transparent";
-    node.color = "transparent";
-    const v = oldDrawNode.apply(this, arguments);
+    // 直接调节点自己的 draw（它内部会 save/restore、算尺寸、画背景+文字）
     node.draw(ctx);
-    return v;
+    return true;
   }
   return oldDrawNode.apply(this, arguments);
 };
