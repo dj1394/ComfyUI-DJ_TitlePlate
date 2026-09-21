@@ -242,6 +242,12 @@ function removeTitleEditor(node) {
 // ── CSS 注入 ──────────────────────────────────────────────
 const style = document.createElement("style");
 style.textContent = `
+  /* 默认隐藏虚框（showBorder=false） */
+  .litegraph-node[data-dj-noborder="true"] {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
   .dj-title-plate-help-dialog {
     outline: 0;
     border: 0;
@@ -641,6 +647,7 @@ class DJTitlePlate extends LGraphNode {
       padding: 0,
       borderRadius: 0,
       angle: 0,
+      showBorder: false, // 默认不显示虚框
     };
     this.color = "#fff0";
     this.bgcolor = "#fff0";
@@ -744,9 +751,27 @@ class DJTitlePlate extends LGraphNode {
     return true;
   }
 
-  // 上屏后绑 Vue DOM 层 dblclick（主路）
+  // 同步虚框显示状态到 Vue DOM
+  _syncBorderVisibility() {
+    const el = this._vueDblEl ||
+      document.querySelector(`.litegraph-node[data-node-id="${this.id}"]`) ||
+      document.querySelector(`[data-node-id="${this.id}"]`);
+    if (el) {
+      el.dataset.djNoborder = String(!this.properties.showBorder);
+    }
+  }
+
+  // 上屏后绑 Vue DOM 层 dblclick（主路）+ 虚框状态
   onNodeCreated() {
     attachVueDblClick(this);
+    // 等 Vue DOM 渲染完再同步
+    requestAnimationFrame(() => this._syncBorderVisibility());
+  }
+
+  onPropertyChange(name, value) {
+    if (name === "showBorder") {
+      this._syncBorderVisibility();
+    }
   }
 
   onRemoved() {
