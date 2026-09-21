@@ -98,8 +98,11 @@ const fontBar = {
   syncSlider(size) {
     const s = this.clamp(size);
     if (this.sliderFill) {
-      const span = FONT_SLIDER_VISUAL_MAX - MIN_FONT_SIZE;
-      const ratio = span > 0 ? (s - MIN_FONT_SIZE) / span : 0;
+      // 对数映射：小字号区间拖动更灵敏，大字号区间更稳。
+      // 12→0%，32≈44%，96→100%，超过 96 后填充不再变长（数值仍继续涨）。
+      const logMin = Math.log(MIN_FONT_SIZE);
+      const logMax = Math.log(FONT_SLIDER_VISUAL_MAX);
+      const ratio = (Math.log(s) - logMin) / (logMax - logMin);
       this.sliderFill.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
     }
     if (this.numberInput && document.activeElement !== this.numberInput) {
@@ -160,6 +163,8 @@ const fontBar = {
       display: "none",
       alignItems: "center",
       gap: "8px",
+      left: "0px",
+      top: "0px",
       width: `${FONT_BAR_WIDTH}px`,
       padding: "7px 8px",
       border: "1px solid rgba(255, 255, 255, 0.16)",
@@ -277,6 +282,13 @@ const fontBar = {
     this.syncSlider(node.properties.fontSize);
     this.panel.style.display = "flex";
     this.positionPanel();
+    // 兜底定位：首帧若没算出来，强制摆到屏幕左上角附近，保证一定可见
+    const r = this.panel.getBoundingClientRect();
+    if (r.width === 0 || r.left === 0 && r.top === 0) {
+      this.panel.style.left = "16px";
+      this.panel.style.top = "16px";
+    }
+    console.info("[DJ_TitlePlate] 字号横条已弹出，fontSize =", node.properties.fontSize);
     this.startFollow();
   },
 
@@ -298,9 +310,17 @@ window.addEventListener("pointerdown", (event) => {
     if (cur === fontBar.panel) return;
     cur = cur.parentElement;
   }
-  const node = LGraphCanvas.active_canvas?.graph?.getNodeOnPos?.(
-    ...LGraphCanvas.active_canvas.convertEventToCanvasOffset(event),
-  );
+  const graphCanvas = LGraphCanvas.active_canvas;
+  let node = null;
+  try {
+    const point = graphCanvas?.convertEventToCanvasOffset?.(event);
+    if (point && graphCanvas?.graph) {
+      node = graphCanvas.graph.getNodeOnPos(point[0], point[1]);
+    }
+  } catch (e) {
+    console.warn("[DJ_TitlePlate] 点击命中检测异常", e);
+    node = null;
+  }
   if (node instanceof DJTitlePlate) {
     // 记录双击判定：第二次点击交给 onDblClick（文字编辑）
     const last = fontBar._lastClick;
@@ -319,7 +339,6 @@ window.addEventListener("keydown", (event) => {
 }, true);
 
 window.addEventListener("blur", () => fontBar.close());
-document.head.appendChild(style);
 
 // ── 帮助对话框 ────────────────────────────────────────────
 function showHelpDialog(node, content) {
@@ -458,6 +477,7 @@ class DJTitlePlate extends LGraphNode {
   // ── 双击：原地弹出输入框直接改文字 ─────────────────────
   onDblClick(event, pos, canvas) {
     if (this._editing) return;
+    fontBar.close();
     this._startInlineEdit(canvas);
   }
 
