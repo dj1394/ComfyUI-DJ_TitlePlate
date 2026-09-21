@@ -673,7 +673,7 @@ class DJTitlePlate extends LGraphNode {
 
     const maxWidth = Math.max(20, ...lines.map((s) => ctx.measureText(s).width));
     this.size[0] = maxWidth + padding * 2;
-    this.size[1] = fontSize * lines.length * 1.3 + padding * 2;
+    this.size[1] = fontSize * lines.length * 1.08 + padding * 2;
 
     // 旋转
     const angleDeg = parseInt(String(this.properties.angle ?? 0)) || 0;
@@ -709,17 +709,12 @@ class DJTitlePlate extends LGraphNode {
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = fontColor;
 
-    // 用真实字形度量做视觉居中（middle 基线对中文等字体偏上，下方会空太多）
-    const lineHeight = fontSize * 1.3;
-    let firstLineTop = 0;
-    if (lines.length > 0) {
-      const sample = lines[0] || " ";
-      const m = ctx.getTextBoundingBox ? ctx.getTextBoundingBox(sample) : null;
-      const asc = m ? m.fontBoundingBoxAscent : fontSize * 0.8;
-      const desc = m ? m.fontBoundingBoxDescent : fontSize * 0.2;
-      firstLineTop = (this.size[1] - lineHeight * lines.length) / 2 + asc;
-    }
-    let currentY = firstLineTop; // 首行基线（alphabetic）
+    const lineHeight = fontSize * 1.08;
+    // alphabetic 基线 = 字形底部；ascent 调大让文字整体下移
+    const ascent = fontSize * 0.925;
+    const totalTextH = lineHeight * lines.length;
+    let currentY = (this.size[1] - totalTextH) / 2 + ascent;
+
     for (let i = 0; i < lines.length; i++) {
       ctx.fillText(lines[i] || " ", textX, currentY);
       currentY += lineHeight;
