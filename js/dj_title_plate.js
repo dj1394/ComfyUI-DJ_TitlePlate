@@ -58,6 +58,267 @@ style.textContent = `
     box-shadow: 0 4px 16px rgba(0,0,0,0.6);
   }
 `;
+
+// ── 字号横条常量（与 DJ_GroupTitle 一致）──────────────────
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 300;
+const FONT_SLIDER_PIXELS_PER_STEP = 2; // 拖动速率：每 2 屏幕像素 = 1 号字
+const FONT_SLIDER_VISUAL_MAX = 96;     // 滑块填充视觉上限（超过后不再变长）
+const FONT_BAR_WIDTH = 236;            // 横条宽度
+
+// ── 字号横条（点击标签上方弹出，拖动改字号）───────────────
+const fontBar = {
+  panel: null,
+  sliderFill: null,
+  numberInput: null,
+  anchorNode: null,
+  drag: null,
+  frameHandle: 0,
+
+  clamp(value) {
+    const n = Number(value);
+    return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(Number.isFinite(n) ? n : 32)));
+  },
+
+  setFontSize(size) {
+    const node = this.anchorNode;
+    if (!node) return;
+    const s = this.clamp(size);
+    if (Number(node.properties.fontSize) === s) {
+      this.syncSlider(s);
+      return;
+    }
+    node.properties.fontSize = s;
+    node.setDirtyCanvas?.(true, true);
+    const canvas = LGraphCanvas.active_canvas;
+    canvas?.setDirty?.(true, true);
+    this.syncSlider(s);
+  },
+
+  syncSlider(size) {
+    const s = this.clamp(size);
+    if (this.sliderFill) {
+      const span = FONT_SLIDER_VISUAL_MAX - MIN_FONT_SIZE;
+      const ratio = span > 0 ? (s - MIN_FONT_SIZE) / span : 0;
+      this.sliderFill.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+    }
+    if (this.numberInput && document.activeElement !== this.numberInput) {
+      this.numberInput.value = String(s);
+    }
+  },
+
+  // 锚定在标签上方，跟随缩放/平移（每帧重算）
+  positionPanel() {
+    const node = this.anchorNode;
+    const canvas = LGraphCanvas.active_canvas;
+    if (!this.panel || !node?.pos || !canvas?.canvas?.isConnected) return;
+
+    const [localX, localY] = canvas.canvasPosToDom([
+      Number(node.pos[0]) || 0,
+      (Number(node.pos[1]) || 0) - 12, // 标签上沿再往上 12px
+    ]);
+    const rect = canvas.canvas.getBoundingClientRect();
+    const width = this.panel.offsetWidth || FONT_BAR_WIDTH;
+    const height = this.panel.offsetHeight || 34;
+    const maxTop = Math.max(8, window.innerHeight - height - 8);
+    const left = Math.min(
+      Math.max(8, rect.left + localX),
+      Math.max(8, window.innerWidth - width - 8),
+    );
+    const top = Math.min(Math.max(8, rect.top + localY - height), maxTop);
+    this.panel.style.left = `${Math.round(left)}px`;
+    this.panel.style.top = `${Math.round(top)}px`;
+  },
+
+  follow() {
+    if (!this.anchorNode) {
+      this.frameHandle = 0;
+      return;
+    }
+    this.positionPanel();
+    this.frameHandle = window.requestAnimationFrame(() => this.follow());
+  },
+
+  startFollow() {
+    if (this.frameHandle) return;
+    this.frameHandle = window.requestAnimationFrame(() => this.follow());
+  },
+
+  stopFollow() {
+    if (!this.frameHandle) return;
+    window.cancelAnimationFrame(this.frameHandle);
+    this.frameHandle = 0;
+  },
+
+  ensurePanel() {
+    if (this.panel?.isConnected) return;
+
+    const panel = document.createElement("div");
+    Object.assign(panel.style, {
+      position: "fixed",
+      zIndex: "100002",
+      display: "none",
+      alignItems: "center",
+      gap: "8px",
+      width: `${FONT_BAR_WIDTH}px`,
+      padding: "7px 8px",
+      border: "1px solid rgba(255, 255, 255, 0.16)",
+      borderRadius: "6px",
+      background: "rgba(31, 34, 42, 0.98)",
+      boxShadow: "0 6px 22px rgba(0, 0, 0, 0.45)",
+      boxSizing: "border-box",
+      font: "12px/1.2 Inter, sans-serif",
+    });
+
+    const track = document.createElement("div");
+    Object.assign(track.style, {
+      position: "relative",
+      flex: "1 1 auto",
+      height: "18px",
+      border: "1px solid rgba(255, 255, 255, 0.14)",
+      borderRadius: "9px",
+      background: "rgba(255, 255, 255, 0.08)",
+      cursor: "ew-resize",
+      overflow: "hidden",
+      touchAction: "none",
+      userSelect: "none",
+    });
+
+    const fill = document.createElement("div");
+    Object.assign(fill.style, {
+      position: "absolute",
+      left: "0",
+      top: "0",
+      bottom: "0",
+      width: "0%",
+      background: "rgba(110, 231, 183, 0.55)",
+    });
+    track.appendChild(fill);
+
+    const numberInput = document.createElement("input");
+    numberInput.type = "number";
+    numberInput.min = String(MIN_FONT_SIZE);
+    numberInput.max = String(MAX_FONT_SIZE);
+    numberInput.step = "1";
+    numberInput.title = "输入字号后回车生效";
+    Object.assign(numberInput.style, {
+      width: "56px",
+      height: "22px",
+      padding: "0 4px",
+      border: "1px solid rgba(255, 255, 255, 0.20)",
+      borderRadius: "4px",
+      background: "rgba(0, 0, 0, 0.35)",
+      color: "#ffffff",
+      font: "12px/1 Inter, sans-serif",
+      textAlign: "center",
+      boxSizing: "border-box",
+    });
+
+    panel.append(track, numberInput);
+    document.body.appendChild(panel);
+
+    this.panel = panel;
+    this.sliderFill = fill;
+    this.numberInput = numberInput;
+
+    track.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || !this.anchorNode) return;
+      event.preventDefault();
+      event.stopPropagation();
+      track.setPointerCapture?.(event.pointerId);
+      this.drag = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startFontSize: Number(this.anchorNode.properties.fontSize) || 32,
+      };
+    });
+
+    track.addEventListener("pointermove", (event) => {
+      if (!this.drag || event.pointerId !== this.drag.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const deltaX = event.clientX - this.drag.startClientX;
+      this.setFontSize(this.drag.startFontSize + deltaX / FONT_SLIDER_PIXELS_PER_STEP);
+    });
+
+    const finishDrag = (event) => {
+      if (!this.drag || event.pointerId !== this.drag.pointerId) return;
+      this.drag = null;
+    };
+    track.addEventListener("pointerup", finishDrag);
+    track.addEventListener("pointercancel", finishDrag);
+
+    numberInput.addEventListener("pointerdown", (event) => event.stopPropagation());
+    numberInput.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const parsed = Number.parseFloat(numberInput.value);
+        if (Number.isFinite(parsed)) this.setFontSize(parsed);
+        else this.syncSlider(this.anchorNode?.properties.fontSize);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        this.close();
+      }
+    });
+    numberInput.addEventListener("blur", () => {
+      if (!this.anchorNode) return;
+      const parsed = Number.parseFloat(numberInput.value);
+      if (Number.isFinite(parsed)) this.setFontSize(parsed);
+    });
+  },
+
+  open(node) {
+    if (!node) return;
+    this.close();
+    this.anchorNode = node;
+    this.ensurePanel();
+    this.drag = null;
+    this.syncSlider(node.properties.fontSize);
+    this.panel.style.display = "flex";
+    this.positionPanel();
+    this.startFollow();
+  },
+
+  close() {
+    this.drag = null;
+    this.anchorNode = null;
+    this.stopFollow();
+    if (this.panel) this.panel.style.display = "none";
+  },
+};
+
+// 窗口级监听：点标签弹横条，双击交给文字编辑，Esc 关闭
+window.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  const el = event.target;
+  // 点在横条自己身上：不关
+  let cur = el;
+  while (cur) {
+    if (cur === fontBar.panel) return;
+    cur = cur.parentElement;
+  }
+  const node = LGraphCanvas.active_canvas?.graph?.getNodeOnPos?.(
+    ...LGraphCanvas.active_canvas.convertEventToCanvasOffset(event),
+  );
+  if (node instanceof DJTitlePlate) {
+    // 记录双击判定：第二次点击交给 onDblClick（文字编辑）
+    const last = fontBar._lastClick;
+    const isDouble = last && last.node === node && event.timeStamp - last.timeStamp < 400;
+    fontBar._lastClick = { node, timeStamp: event.timeStamp };
+    if (!isDouble) fontBar.open(node);
+  } else {
+    // 点在别处：关掉横条（点标签之外的任何地方）
+    if (fontBar.anchorNode) fontBar.close();
+    fontBar._lastClick = null;
+  }
+}, true);
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && fontBar.anchorNode) fontBar.close();
+}, true);
+
+window.addEventListener("blur", () => fontBar.close());
 document.head.appendChild(style);
 
 // ── 帮助对话框 ────────────────────────────────────────────
@@ -261,9 +522,10 @@ class DJTitlePlate extends LGraphNode {
       callback: () => {
         showHelpDialog(this, `
           <p>「大江 标题」节点允许你在画布任意位置添加浮动文字标签。</p>
-          <p><b>双击节点</b>即可原地编辑文字内容（Enter 保存，Esc 取消，Shift+Enter 换行）。</p>
           <ul>
-            <li><p><strong>样式调整：</strong>右键菜单「属性」打开属性面板，可改字体大小、字体家族、颜色、对齐方式、背景色、内边距、圆角、旋转角度。</p></li>
+            <li><p><strong>单击标签：</strong>上方弹出字号横条，左右拖动即可改字体大小（也可在右侧数字框输入精确值，回车生效）。</p></li>
+            <li><p><strong>双击标签：</strong>原地编辑文字内容（Enter 保存，Esc 取消，Shift+Enter 换行）。</p></li>
+            <li><p><strong>样式调整：</strong>右键菜单「属性」打开属性面板，可改字体家族、颜色、对齐方式、背景色、内边距、圆角、旋转角度。</p></li>
             <li><p><strong>钉住：</strong>右键菜单选择「钉住」可以让标签固定在工作流上，点击穿透。再次右键可以取消钉住。</p></li>
             <li><p><strong>颜色用十六进制</strong>，如 <code>#FFFFFF</code> 白色、<code>#660000</code> 深红。第 7-8 位控制透明度，如 <code>#FFFFFF88</code> 半透明白。</p></li>
           </ul>
