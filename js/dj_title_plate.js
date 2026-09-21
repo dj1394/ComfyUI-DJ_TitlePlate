@@ -110,16 +110,40 @@ const fontBar = {
     }
   },
 
-  // 锚定在标签上方，跟随缩放/平移（每帧重算）
+  // 锚定在标签上方，跟随缩放/平移（每帧重算）。
+  // 坐标算法与 DJ_GroupTitle 一致：convertOffsetToCanvas 得到画布元素内部像素，
+  // 再叠加 getBoundingClientRect() 的页面偏移，才是 fixed 定位需要的窗口坐标。
   positionPanel() {
     const node = this.anchorNode;
     const canvas = LGraphCanvas.active_canvas;
     if (!this.panel || !node?.pos || !canvas?.canvas?.isConnected) return;
 
-    const [localX, localY] = canvas.canvasPosToDom([
-      Number(node.pos[0]) || 0,
-      (Number(node.pos[1]) || 0) - 12, // 标签上沿再往上 12px
-    ]);
+    let localX, localY;
+    try {
+      if (typeof canvas.convertOffsetToCanvas === "function") {
+        const converted = canvas.convertOffsetToCanvas([
+          Number(node.pos[0]) || 0,
+          (Number(node.pos[1]) || 0) - 12, // 标签上沿再往上 12px
+        ]);
+        if (Array.isArray(converted)) {
+          localX = converted[0];
+          localY = converted[1];
+        }
+      }
+      if (localX === undefined || localY === undefined) {
+        // 兜底：直接用画布缩放/偏移状态手算
+        const ds = canvas.ds ?? {};
+        const scale = Number(ds.scale) || 1;
+        const offsetX = Number(ds.offset?.[0]) || 0;
+        const offsetY = Number(ds.offset?.[1]) || 0;
+        localX = ((Number(node.pos[0]) || 0) + offsetX) * scale;
+        localY = (((Number(node.pos[1]) || 0) - 12) + offsetY) * scale;
+      }
+    } catch (e) {
+      console.warn("[DJ_TitlePlate] 横条定位异常", e);
+      return;
+    }
+
     const rect = canvas.canvas.getBoundingClientRect();
     const width = this.panel.offsetWidth || FONT_BAR_WIDTH;
     const height = this.panel.offsetHeight || 34;
@@ -282,12 +306,6 @@ const fontBar = {
     this.syncSlider(node.properties.fontSize);
     this.panel.style.display = "flex";
     this.positionPanel();
-    // 兜底定位：首帧若没算出来，强制摆到屏幕左上角附近，保证一定可见
-    const r = this.panel.getBoundingClientRect();
-    if (r.width === 0 || r.left === 0 && r.top === 0) {
-      this.panel.style.left = "16px";
-      this.panel.style.top = "16px";
-    }
     console.info("[DJ_TitlePlate] 字号横条已弹出，fontSize =", node.properties.fontSize);
     this.startFollow();
   },
