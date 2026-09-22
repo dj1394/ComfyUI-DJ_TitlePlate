@@ -555,6 +555,7 @@ const fontBar = {
       background: "rgba(0, 0, 0, 0.35)",
       color: "#ffffff",
       font: "12px/1 Inter, sans-serif",
+      fontSize: "10px",
       textAlign: "center",
       boxSizing: "border-box",
     });
@@ -615,6 +616,7 @@ const fontBar = {
       background: "rgba(0, 0, 0, 0.35)",
       color: "#ffffff",
       font: "12px/1 Inter, sans-serif",
+      fontSize: "11px",
       textAlign: "center",
       boxSizing: "border-box",
     });
