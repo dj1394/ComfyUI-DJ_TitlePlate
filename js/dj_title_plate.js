@@ -69,6 +69,7 @@ function createTitleEditor(node) {
   const padding = Number(node.properties.padding) ?? 0;
   const fontColor = node.properties.fontColor || "#ffffff";
   const align = node.properties.textAlign || "left";
+  const letterSpacing = Number(node.properties.letterSpacing) || 0;
 
   // 选中高亮样式（只注入一次）
   if (!document.getElementById("dj-title-edit-selection-style")) {
@@ -108,9 +109,10 @@ function createTitleEditor(node) {
   const ta = document.createElement("textarea");
   ta.value = node.getText();
   ta.spellcheck = false;
-  // 算文字实际宽度，让 textarea 贴合内容
+  // 算文字实际宽度，让 textarea 贴合内容（含字距）
   const _mCtx = document.createElement("canvas").getContext("2d");
   _mCtx.font = `${Math.max(fontSize, 1) * sc}px ${fontFamily}`;
+  if ("letterSpacing" in _mCtx) _mCtx.letterSpacing = `${letterSpacing * sc}px`;
   const _lines = node.getText().split("\n");
   let _maxW = 0;
   for (const _l of _lines) { if (_mCtx.measureText(_l || " ").width > _maxW) _maxW = _mCtx.measureText(_l || " ").width; }
@@ -127,6 +129,7 @@ function createTitleEditor(node) {
     "color:transparent;-webkit-text-fill-color:transparent;",
     `caret-color:${fontColor === "#ffffff" ? "#00ff6a" : fontColor};`,
     `text-align:${align};`,
+    `letter-spacing:${letterSpacing * sc}px;`,
     `font: ${fontSize * sc}px ${fontFamily};`,
     `line-height:${1.3 * fontSize * sc}px;`,
     "overflow:hidden;white-space:pre-wrap;word-break:break-all;position:relative;",
@@ -320,11 +323,15 @@ style.textContent = `
   }
 `;
 
-// ── 字号横条常量（与 DJ_GroupTitle 一致）──────────────────
+// ── 字号/字距横条常量（与 DJ_GroupTitle 一致）──────────────
 const MIN_FONT_SIZE = 12;
 const MAX_FONT_SIZE = 300;
 const FONT_SLIDER_PIXELS_PER_STEP = 2; // 拖动速率：每 2 屏幕像素 = 1 号字
 const FONT_SLIDER_VISUAL_MAX = 96;     // 滑块填充视觉上限（超过后不再变长）
+const MIN_LETTER_SPACING = -10;        // 字距范围 px
+const MAX_LETTER_SPACING = 50;
+const LETTER_SLIDER_PIXELS_PER_STEP = 2; // 每 2 屏幕像素 = 1px 字距
+const LETTER_SLIDER_VISUAL_MAX = 20;    // 滑块填充视觉上限（超过后不再变长）
 const FONT_BAR_WIDTH = 236;            // 横条宽度
 
 // ── 字号横条（点击标签下方弹出，拖动改字号）───────────────
@@ -332,19 +339,26 @@ const fontBar = {
   panel: null,
   sliderFill: null,
   numberInput: null,
+  letterFill: null,
+  letterInput: null,
   anchorNode: null,
   drag: null,
   frameHandle: 0,
 
-  clamp(value) {
+  clampSize(value) {
     const n = Number(value);
     return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(Number.isFinite(n) ? n : 32)));
+  },
+
+  clampSpacing(value) {
+    const n = Number(value);
+    return Math.max(MIN_LETTER_SPACING, Math.min(MAX_LETTER_SPACING, Math.round(Number.isFinite(n) ? n : 0)));
   },
 
   setFontSize(size) {
     const node = this.anchorNode;
     if (!node) return;
-    const s = this.clamp(size);
+    const s = this.clampSize(size);
     if (Number(node.properties.fontSize) === s) {
       this.syncSlider(s);
       return;
@@ -356,8 +370,23 @@ const fontBar = {
     this.syncSlider(s);
   },
 
+  setLetterSpacing(spacing) {
+    const node = this.anchorNode;
+    if (!node) return;
+    const s = this.clampSpacing(spacing);
+    if (Number(node.properties.letterSpacing) === s) {
+      this.syncLetterSlider(s);
+      return;
+    }
+    node.properties.letterSpacing = s;
+    node.setDirtyCanvas?.(true, true);
+    const canvas = LGraphCanvas.active_canvas;
+    canvas?.setDirty?.(true, true);
+    this.syncLetterSlider(s);
+  },
+
   syncSlider(size) {
-    const s = this.clamp(size);
+    const s = this.clampSize(size);
     if (this.sliderFill) {
       // 对数映射：小字号区间拖动更灵敏，大字号区间更稳。
       // 12→0%，32≈44%，96→100%，超过 96 后填充不再变长（数值仍继续涨）。
@@ -368,6 +397,18 @@ const fontBar = {
     }
     if (this.numberInput && document.activeElement !== this.numberInput) {
       this.numberInput.value = String(s);
+    }
+  },
+
+  syncLetterSlider(spacing) {
+    const s = this.clampSpacing(spacing);
+    if (this.letterFill) {
+      // 线性映射：-10→0%，0→20%，20→100%（视觉上限），超过后填充不再变长
+      const ratio = (s - MIN_LETTER_SPACING) / (LETTER_SLIDER_VISUAL_MAX - MIN_LETTER_SPACING);
+      this.letterFill.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+    }
+    if (this.letterInput && document.activeElement !== this.letterInput) {
+      this.letterInput.value = String(s);
     }
   },
 
@@ -447,8 +488,8 @@ const fontBar = {
       position: "fixed",
       zIndex: "100002",
       display: "none",
-      alignItems: "center",
-      gap: "8px",
+      flexDirection: "column",
+      gap: "6px",
       left: "0px",
       top: "0px",
       width: `${FONT_BAR_WIDTH}px`,
@@ -459,6 +500,19 @@ const fontBar = {
       boxShadow: "0 6px 22px rgba(0, 0, 0, 0.45)",
       boxSizing: "border-box",
       font: "12px/1.2 Inter, sans-serif",
+    });
+
+    // ── 第一行：字号 ──
+    const sizeRow = document.createElement("div");
+    Object.assign(sizeRow.style, { display: "flex", alignItems: "center", gap: "8px" });
+
+    const sizeLabel = document.createElement("span");
+    sizeLabel.textContent = "字号";
+    Object.assign(sizeLabel.style, {
+      width: "28px",
+      flexShrink: "0",
+      color: "rgba(255,255,255,0.75)",
+      fontSize: "12px",
     });
 
     const track = document.createElement("div");
@@ -505,12 +559,75 @@ const fontBar = {
       boxSizing: "border-box",
     });
 
-    panel.append(track, numberInput);
+    sizeRow.append(sizeLabel, track, numberInput);
+
+    // ── 第二行：字距 ──
+    const letterRow = document.createElement("div");
+    Object.assign(letterRow.style, { display: "flex", alignItems: "center", gap: "8px" });
+
+    const letterLabel = document.createElement("span");
+    letterLabel.textContent = "字距";
+    Object.assign(letterLabel.style, {
+      width: "28px",
+      flexShrink: "0",
+      color: "rgba(255,255,255,0.75)",
+      fontSize: "12px",
+    });
+
+    const letterTrack = document.createElement("div");
+    Object.assign(letterTrack.style, {
+      position: "relative",
+      flex: "1 1 auto",
+      height: "18px",
+      border: "1px solid rgba(255, 255, 255, 0.14)",
+      borderRadius: "9px",
+      background: "rgba(255, 255, 255, 0.08)",
+      cursor: "ew-resize",
+      overflow: "hidden",
+      touchAction: "none",
+      userSelect: "none",
+    });
+
+    const letterFill = document.createElement("div");
+    Object.assign(letterFill.style, {
+      position: "absolute",
+      left: "0",
+      top: "0",
+      bottom: "0",
+      width: "20%", // 默认字距 0 → (-10..20 区间) 20%
+      background: "rgba(110, 231, 183, 0.55)",
+    });
+    letterTrack.appendChild(letterFill);
+
+    const letterInput = document.createElement("input");
+    letterInput.type = "number";
+    letterInput.min = String(MIN_LETTER_SPACING);
+    letterInput.max = String(MAX_LETTER_SPACING);
+    letterInput.step = "1";
+    letterInput.title = "输入字距后回车生效";
+    Object.assign(letterInput.style, {
+      width: "56px",
+      height: "22px",
+      padding: "0 4px",
+      border: "1px solid rgba(255, 255, 255, 0.20)",
+      borderRadius: "4px",
+      background: "rgba(0, 0, 0, 0.35)",
+      color: "#ffffff",
+      font: "12px/1 Inter, sans-serif",
+      textAlign: "center",
+      boxSizing: "border-box",
+    });
+
+    letterRow.append(letterLabel, letterTrack, letterInput);
+
+    panel.append(sizeRow, letterRow);
     document.body.appendChild(panel);
 
     this.panel = panel;
     this.sliderFill = fill;
     this.numberInput = numberInput;
+    this.letterFill = letterFill;
+    this.letterInput = letterInput;
 
     track.addEventListener("pointerdown", (event) => {
       if (event.button !== 0 || !this.anchorNode) return;
@@ -557,6 +674,54 @@ const fontBar = {
       const parsed = Number.parseFloat(numberInput.value);
       if (Number.isFinite(parsed)) this.setFontSize(parsed);
     });
+
+    // ── 字距行交互 ──
+    letterTrack.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || !this.anchorNode) return;
+      event.preventDefault();
+      event.stopPropagation();
+      letterTrack.setPointerCapture?.(event.pointerId);
+      this.drag = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startLetterSpacing: Number(this.anchorNode.properties.letterSpacing) || 0,
+        isLetter: true,
+      };
+    });
+
+    letterTrack.addEventListener("pointermove", (event) => {
+      if (!this.drag || !this.drag.isLetter || event.pointerId !== this.drag.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const deltaX = event.clientX - this.drag.startClientX;
+      this.setLetterSpacing(this.drag.startLetterSpacing + deltaX / LETTER_SLIDER_PIXELS_PER_STEP);
+    });
+
+    const finishLetterDrag = (event) => {
+      if (!this.drag || !this.drag.isLetter || event.pointerId !== this.drag.pointerId) return;
+      this.drag = null;
+    };
+    letterTrack.addEventListener("pointerup", finishLetterDrag);
+    letterTrack.addEventListener("pointercancel", finishLetterDrag);
+
+    letterInput.addEventListener("pointerdown", (event) => event.stopPropagation());
+    letterInput.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const parsed = Number.parseFloat(letterInput.value);
+        if (Number.isFinite(parsed)) this.setLetterSpacing(parsed);
+        else this.syncLetterSlider(this.anchorNode?.properties.letterSpacing);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        this.close();
+      }
+    });
+    letterInput.addEventListener("blur", () => {
+      if (!this.anchorNode) return;
+      const parsed = Number.parseFloat(letterInput.value);
+      if (Number.isFinite(parsed)) this.setLetterSpacing(parsed);
+    });
   },
 
   open(node) {
@@ -566,6 +731,7 @@ const fontBar = {
     this.ensurePanel();
     this.drag = null;
     this.syncSlider(node.properties.fontSize);
+    this.syncLetterSlider(node.properties.letterSpacing ?? 0);
     node._fontBarOpen = true; // 选中态：文字加 50% 灰色线框
     node.setDirtyCanvas?.(true, true);
     this.panel.style.display = "flex";
@@ -702,6 +868,7 @@ class DJTitlePlate extends LGraphNode {
       padding: 0,
       borderRadius: 0,
       angle: 0,
+      letterSpacing: 0, // 字距 px
       showBorder: false, // 默认不显示虚框
     };
     this.color = "#fff0";
@@ -729,8 +896,10 @@ class DJTitlePlate extends LGraphNode {
     const fontSize = Math.max(this.properties.fontSize || 0, 1);
     const fontFamily = this.properties.fontFamily ?? "Arial";
     const padding = Number(this.properties.padding) ?? 0;
+    const letterSpacing = Number(this.properties.letterSpacing) || 0;
 
     ctx.font = `${fontSize}px ${fontFamily}`;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = `${letterSpacing}px`;
 
     const lines = this.getText().split("\n");
 
@@ -862,7 +1031,7 @@ class DJTitlePlate extends LGraphNode {
         showHelpDialog(this, `
           <p>「大江 标题」节点允许你在画布任意位置添加浮动文字标签。</p>
           <ul>
-            <li><p><strong>单击标签：</strong>下方弹出字号横条，左右拖动即可改字体大小（也可在右侧数字框输入精确值，回车生效）；选中时文字外有 50% 灰色线框。</p></li>
+            <li><p><strong>单击标签：</strong>下方弹出字号/字距横条，上下两行分别左右拖动即可改字体大小和字距（也可在右侧数字框输入精确值，回车生效）；选中时文字外有 50% 灰色线框。</p></li>
             <li><p><strong>双击标签：</strong>原地编辑文字内容（Enter 保存，Esc 取消，Shift+Enter 换行）。</p></li>
             <li><p><strong>样式调整：</strong>右键菜单「属性」打开属性面板，可改字体家族、颜色、对齐方式、背景色、内边距、圆角、旋转角度。</p></li>
             <li><p><strong>钉住：</strong>右键菜单选择「钉住」可以让标签固定在工作流上，点击穿透。再次右键可以取消钉住。</p></li>
