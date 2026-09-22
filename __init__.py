@@ -35,7 +35,7 @@ NODE_CLASS_MAPPINGS = {
     "DJ_TitlePlate": DJ_TitlePlate,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DJ_TitlePlate": "大江 标题",
+    "DJ_TitlePlate": "大江 标题标签",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

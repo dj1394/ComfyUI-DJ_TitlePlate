@@ -851,9 +851,9 @@ function showHelpDialog(node, content) {
   dialog.showModal();
 }
 
-// ── 大江 标题 节点 ────────────────────────────────────────
+// ── 大江 标题标签 节点 ────────────────────────────────────────
 class DJTitlePlate extends LGraphNode {
-  static title = "大江 标题";
+  static title = "大江 标题标签";
   static type = "DJ_TitlePlate";
   static category = "大江";
   static collapsable = false;
@@ -1034,7 +1034,7 @@ class DJTitlePlate extends LGraphNode {
       content: "🛟 帮助",
       callback: () => {
         showHelpDialog(this, `
-          <p>「大江 标题」节点允许你在画布任意位置添加浮动文字标签。</p>
+          <p>「大江 标题标签」节点允许你在画布任意位置添加浮动文字标签。</p>
           <ul>
             <li><p><strong>单击标签：</strong>下方弹出字号/字距横条，上下两行分别左右拖动即可改字体大小和字距（也可在右侧数字框输入精确值，回车生效）；选中时文字外有 50% 灰色线框。</p></li>
             <li><p><strong>双击标签：</strong>原地编辑文字内容（Enter 保存，Esc 取消，Shift+Enter 换行）。</p></li>
@@ -1094,7 +1094,7 @@ app.registerExtension({
     nodeData.output = {};
     nodeData.output_is_list = [];
     nodeData.output_name = [];
-    nodeData.name = "大江 标题";
+    nodeData.name = "大江 标题标签";
     nodeData.category = "大江";
     return true; // 继续用前端类注册
   },
