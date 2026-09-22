@@ -320,6 +320,14 @@ style.textContent = `
   body.dj-title-plate-dialog-open > *:not(.dj-title-plate-help-dialog) {
     filter: blur(5px);
   }
+
+  /* 数字框：去掉上下翻动按钮（与横条拖动功能冗余），腾出空间让三位数完整显示 */
+  .dj-num-input { -moz-appearance: textfield; appearance: textfield; }
+  .dj-num-input::-webkit-outer-spin-button,
+  .dj-num-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 `;
 
 // ── 字号/字距横条常量（与 DJ_GroupTitle 一致）──────────────
@@ -542,6 +550,7 @@ const fontBar = {
 
     const numberInput = document.createElement("input");
     numberInput.type = "number";
+    numberInput.className = "dj-num-input";
     numberInput.min = String(MIN_FONT_SIZE);
     numberInput.max = String(MAX_FONT_SIZE);
     numberInput.step = "1";
@@ -561,7 +570,6 @@ const fontBar = {
 
     // 去掉数字框上下翻动按钮（与横条拖动功能冗余），腾出的空间让三位数完整显示
     numberInput.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
-
     sizeRow.append(sizeLabel, track, numberInput);
 
     // ── 第二行：字距 ──
@@ -605,6 +613,7 @@ const fontBar = {
 
     const letterInput = document.createElement("input");
     letterInput.type = "number";
+    letterInput.className = "dj-num-input";
     letterInput.min = String(MIN_LETTER_SPACING);
     letterInput.max = String(MAX_LETTER_SPACING);
     letterInput.step = "1";
@@ -624,7 +633,6 @@ const fontBar = {
 
     // 字号框同款：去掉上下翻动按钮
     letterInput.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
-
     letterRow.append(letterLabel, letterTrack, letterInput);
 
     panel.append(sizeRow, letterRow);
