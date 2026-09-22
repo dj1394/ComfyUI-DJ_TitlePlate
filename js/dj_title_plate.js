@@ -327,7 +327,7 @@ const FONT_SLIDER_PIXELS_PER_STEP = 2; // 拖动速率：每 2 屏幕像素 = 1 
 const FONT_SLIDER_VISUAL_MAX = 96;     // 滑块填充视觉上限（超过后不再变长）
 const FONT_BAR_WIDTH = 236;            // 横条宽度
 
-// ── 字号横条（点击标签上方弹出，拖动改字号）───────────────
+// ── 字号横条（点击标签下方弹出，拖动改字号）───────────────
 const fontBar = {
   panel: null,
   sliderFill: null,
@@ -371,7 +371,7 @@ const fontBar = {
     }
   },
 
-  // 锚定在标签上方，跟随缩放/平移（每帧重算）。
+  // 锚定在标签下方，跟随缩放/平移（每帧重算）。
   // 坐标算法与 DJ_GroupTitle 一致：convertOffsetToCanvas 得到画布元素内部像素，
   // 再叠加 getBoundingClientRect() 的页面偏移，才是 fixed 定位需要的窗口坐标。
   positionPanel() {
@@ -384,7 +384,7 @@ const fontBar = {
       if (typeof canvas.convertOffsetToCanvas === "function") {
         const converted = canvas.convertOffsetToCanvas([
           Number(node.pos[0]) || 0,
-          (Number(node.pos[1]) || 0) - 12, // 标签上沿再往上 12px
+          ((Number(node.pos[1]) || 0) + (Number(node.size?.[1]) || 0)) + 12, // 标签下沿再往下 12px
         ]);
         if (Array.isArray(converted)) {
           localX = converted[0];
@@ -398,7 +398,7 @@ const fontBar = {
         const offsetX = Number(ds.offset?.[0]) || 0;
         const offsetY = Number(ds.offset?.[1]) || 0;
         localX = ((Number(node.pos[0]) || 0) + offsetX) * scale;
-        localY = (((Number(node.pos[1]) || 0) - 12) + offsetY) * scale;
+        localY = (((Number(node.pos[1]) || 0) + (Number(node.size?.[1]) || 0) + 12) + offsetY) * scale;
       }
     } catch (e) {
       console.warn("[DJ_TitlePlate] 横条定位异常", e);
@@ -413,7 +413,8 @@ const fontBar = {
       Math.max(8, rect.left + localX),
       Math.max(8, window.innerWidth - width - 8),
     );
-    const top = Math.min(Math.max(8, rect.top + localY - height), maxTop);
+    // 横条顶边贴标签下沿；超出屏幕底部则往上收
+    const top = Math.min(Math.max(8, rect.top + localY), maxTop);
     this.panel.style.left = `${Math.round(left)}px`;
     this.panel.style.top = `${Math.round(top)}px`;
   },
@@ -565,13 +566,24 @@ const fontBar = {
     this.ensurePanel();
     this.drag = null;
     this.syncSlider(node.properties.fontSize);
+    node._fontBarOpen = true; // 选中态：文字加 50% 灰色线框
+    node.setDirtyCanvas?.(true, true);
     this.panel.style.display = "flex";
     this.positionPanel();
     console.info("[DJ_TitlePlate] 字号横条已弹出，fontSize =", node.properties.fontSize);
     this.startFollow();
   },
 
+  // 清掉选中态线框（关闭时调用）
+  clearSelected(node) {
+    if (node && node._fontBarOpen) {
+      node._fontBarOpen = false;
+      node.setDirtyCanvas?.(true, true);
+    }
+  },
+
   close() {
+    this.clearSelected(this.anchorNode); // 去掉选中态线框
     this.drag = null;
     this.anchorNode = null;
     this.stopFollow();
@@ -751,6 +763,13 @@ class DJTitlePlate extends LGraphNode {
       ctx.fillRect(0, 0, this.size[0], this.size[1]);
     }
 
+    // 选中状态（字号横条弹出时）：文字外画 50% 透明度灰色线框
+    if (this._fontBarOpen) {
+      ctx.strokeStyle = "rgba(128,128,128,0.5)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, this.size[0] - 1, this.size[1] - 1);
+    }
+
     // 文字：水平按 textAlign，垂直始终在虚框内居中
     let textX = padding;
     if (this.properties.textAlign === "center") {
@@ -827,6 +846,7 @@ class DJTitlePlate extends LGraphNode {
 
   onRemoved() {
     detachVueDblClick(this);
+    fontBar.clearSelected(this); // 清掉选中态线框标记
     if (this.isEditing) removeTitleEditor(this);
   }
 
@@ -842,7 +862,7 @@ class DJTitlePlate extends LGraphNode {
         showHelpDialog(this, `
           <p>「大江 标题」节点允许你在画布任意位置添加浮动文字标签。</p>
           <ul>
-            <li><p><strong>单击标签：</strong>上方弹出字号横条，左右拖动即可改字体大小（也可在右侧数字框输入精确值，回车生效）。</p></li>
+            <li><p><strong>单击标签：</strong>下方弹出字号横条，左右拖动即可改字体大小（也可在右侧数字框输入精确值，回车生效）；选中时文字外有 50% 灰色线框。</p></li>
             <li><p><strong>双击标签：</strong>原地编辑文字内容（Enter 保存，Esc 取消，Shift+Enter 换行）。</p></li>
             <li><p><strong>样式调整：</strong>右键菜单「属性」打开属性面板，可改字体家族、颜色、对齐方式、背景色、内边距、圆角、旋转角度。</p></li>
             <li><p><strong>钉住：</strong>右键菜单选择「钉住」可以让标签固定在工作流上，点击穿透。再次右键可以取消钉住。</p></li>
