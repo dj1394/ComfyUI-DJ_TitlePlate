@@ -555,10 +555,12 @@ const fontBar = {
       background: "rgba(0, 0, 0, 0.35)",
       color: "#ffffff",
       font: "12px/1 Inter, sans-serif",
-      fontSize: "10px",
       textAlign: "center",
       boxSizing: "border-box",
     });
+
+    // 去掉数字框上下翻动按钮（与横条拖动功能冗余），腾出的空间让三位数完整显示
+    numberInput.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
 
     sizeRow.append(sizeLabel, track, numberInput);
 
@@ -616,10 +618,12 @@ const fontBar = {
       background: "rgba(0, 0, 0, 0.35)",
       color: "#ffffff",
       font: "12px/1 Inter, sans-serif",
-      fontSize: "11px",
       textAlign: "center",
       boxSizing: "border-box",
     });
+
+    // 字号框同款：去掉上下翻动按钮
+    letterInput.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
 
     letterRow.append(letterLabel, letterTrack, letterInput);
 
