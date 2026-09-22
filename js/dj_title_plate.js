@@ -127,6 +127,9 @@ function createTitleEditor(node) {
   node.editTextarea = container;
   node._editTaEl = ta;
   node.isEditing = true;
+  // 强制关掉字号横条（防止它浮在编辑器上方）
+  fontBar.close();
+  if (fontBar.panel) fontBar.panel.style.display = "none";
   // 给 Vue DOM 层节点 wrapper 打标记，CSS 据此消除边框
   if (node._vueDblEl) node._vueDblEl.setAttribute("data-dj-title-editing", "true");
   document.body.appendChild(container);
@@ -241,6 +244,8 @@ function removeTitleEditor(node) {
   if (node._vueDblEl) node._vueDblEl.removeAttribute("data-dj-title-editing");
   node._editTaEl = null;
   node.isEditing = false;
+  // 确保横条状态干净
+  fontBar.close();
 }
 
 // ── CSS 注入 ──────────────────────────────────────────────
@@ -566,6 +571,7 @@ const fontBar = {
     this.drag = null;
     this.anchorNode = null;
     this.stopFollow();
+    if (this._openTimer) { clearTimeout(this._openTimer); this._openTimer = null; }
     if (this.panel) this.panel.style.display = "none";
   },
 };
@@ -594,11 +600,21 @@ window.addEventListener("pointerdown", (event) => {
   if (node instanceof DJTitlePlate) {
     // 编辑中：不弹横条（编辑器自己管关闭）
     if (node.isEditing) return;
-    // 记录双击判定：第二次点击交给 onDblClick（文字编辑），不弹横条
+    // 延迟判定：等 250ms，如果没第二次点击才弹横条（避免双击时先弹再关）
     const last = fontBar._lastClick;
     const isDouble = last && last.node === node && event.timeStamp - last.timeStamp < 400;
     fontBar._lastClick = { node, timeStamp: event.timeStamp };
-    if (!isDouble) fontBar.open(node);
+    if (!isDouble) {
+      // 取消上一次延迟（如果是连续点击）
+      if (fontBar._openTimer) { clearTimeout(fontBar._openTimer); fontBar._openTimer = null; }
+      fontBar._openTimer = setTimeout(() => {
+        fontBar._openTimer = null;
+        // 再次检查：如果期间进入了编辑状态，不弹
+        if (!node.isEditing && !node._removed) {
+          fontBar.open(node);
+        }
+      }, 250);
+    }
   } else {
     // 点在别处：关掉横条（点标签之外的任何地方）
     if (fontBar.anchorNode) fontBar.close();
