@@ -108,12 +108,23 @@ function createTitleEditor(node) {
   const ta = document.createElement("textarea");
   ta.value = node.getText();
   ta.spellcheck = false;
+  // 算文字实际宽度，让 textarea 贴合内容
+  const _mCtx = document.createElement("canvas").getContext("2d");
+  _mCtx.font = `${Math.max(fontSize, 1) * sc}px ${fontFamily}`;
+  const _lines = node.getText().split("\n");
+  let _maxW = 0;
+  for (const _l of _lines) { if (_mCtx.measureText(_l || " ").width > _maxW) _maxW = _mCtx.measureText(_l || " ").width; }
+  const _taW = Math.max(40, _maxW + (padding * sc) * 2 + 4);
+
   ta.style.cssText = [
-    "width:100%",
+    "all:unset;",
+    "box-sizing:border-box;",
+    `width:${_taW}px;`,
     `height:${Math.max(30, node.size[1] * sc)}px`,
-    "outline:none;border:none;resize:none;box-sizing:border-box;",
-    `padding:0 ${padding * sc}px;`,
-    "background:transparent;color:transparent;-webkit-text-fill-color:transparent;",
+    `padding:${padding * sc}px;`,
+    "background:transparent;",
+    "border:1px dashed rgba(0,255,0,0.4);",
+    "color:transparent;-webkit-text-fill-color:transparent;",
     `caret-color:${fontColor === "#ffffff" ? "#00ff6a" : fontColor};`,
     `text-align:${align};`,
     `font: ${fontSize * sc}px ${fontFamily};`,
@@ -134,11 +145,10 @@ function createTitleEditor(node) {
   if (node._vueDblEl) node._vueDblEl.setAttribute("data-dj-title-editing", "true");
   document.body.appendChild(container);
 
-  // 进入编辑直接输入，不全选（避免选中高亮和画布文字错位产生重影）
+  // 进入编辑直接输入，光标定位到开头
   requestAnimationFrame(() => {
     ta.focus({ preventScroll: true });
-    const len = ta.value.length;
-    ta.setSelectionRange(len, len);
+    ta.setSelectionRange(1, 1);
   });
 
   // rAF 跟位：缩放/平移时编辑器始终贴在节点上
@@ -269,13 +279,7 @@ style.textContent = `
     -webkit-appearance: none;
     appearance: none;
   }
-  /* ComfyUI Vue 节点 wrapper 在编辑/选中时可能加的边框 */
-  .litegraph-node[data-dj-title-editing="true"],
-  .litegraph-node[data-dj-title-editing="true"] * {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-  }
+
   .dj-title-plate-help-dialog {
     outline: 0;
     border: 0;
@@ -741,6 +745,12 @@ class DJTitlePlate extends LGraphNode {
       ctx.fill();
     }
 
+    // 编辑状态：在文字下面画一层淡绿底（5% 透明度）
+    if (this.isEditing) {
+      ctx.fillStyle = "rgba(0,255,0,0.02)";
+      ctx.fillRect(0, 0, this.size[0], this.size[1]);
+    }
+
     // 文字：水平按 textAlign，垂直始终在虚框内居中
     let textX = padding;
     if (this.properties.textAlign === "center") {
@@ -766,6 +776,7 @@ class DJTitlePlate extends LGraphNode {
       ctx.fillText(lines[i] || " ", textX, currentY);
       currentY += lineHeight;
     }
+
     ctx.restore();
   }
 
