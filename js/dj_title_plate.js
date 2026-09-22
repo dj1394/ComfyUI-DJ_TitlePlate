@@ -332,7 +332,7 @@ const MIN_LETTER_SPACING = -10;        // 字距范围 px
 const MAX_LETTER_SPACING = 100;
 const LETTER_SLIDER_PIXELS_PER_STEP = 2; // 每 2 屏幕像素 = 1px 字距
 const LETTER_SLIDER_VISUAL_MAX = 20;    // 滑块填充视觉上限（超过后不再变长）
-const FONT_BAR_WIDTH = 236;            // 横条宽度
+const SLIDER_TRACK_WIDTH = 150;         // 每条滑轨固定宽度
 
 // ── 字号横条（点击标签下方弹出，拖动改字号）───────────────
 const fontBar = {
@@ -447,7 +447,7 @@ const fontBar = {
     }
 
     const rect = canvas.canvas.getBoundingClientRect();
-    const width = this.panel.offsetWidth || FONT_BAR_WIDTH;
+    const width = this.panel.offsetWidth || 480;
     const height = this.panel.offsetHeight || 34;
     const maxTop = Math.max(8, window.innerHeight - height - 8);
     const left = Math.min(
@@ -488,12 +488,12 @@ const fontBar = {
       position: "fixed",
       zIndex: "100002",
       display: "none",
-      flexDirection: "column",
-      gap: "6px",
+      flexDirection: "row",
+      gap: "20px",
       left: "0px",
       top: "0px",
-      width: `${FONT_BAR_WIDTH}px`,
-      padding: "7px 8px",
+      width: "auto",
+      padding: "7px 10px",
       border: "1px solid rgba(255, 255, 255, 0.16)",
       borderRadius: "6px",
       background: "rgba(31, 34, 42, 0.98)",
@@ -518,7 +518,8 @@ const fontBar = {
     const track = document.createElement("div");
     Object.assign(track.style, {
       position: "relative",
-      flex: "1 1 auto",
+      flex: "0 0 auto",
+      width: `${SLIDER_TRACK_WIDTH}px`,
       height: "18px",
       border: "1px solid rgba(255, 255, 255, 0.14)",
       borderRadius: "9px",
@@ -547,9 +548,9 @@ const fontBar = {
     numberInput.step = "1";
     numberInput.title = "输入字号后回车生效";
     Object.assign(numberInput.style, {
-      width: "56px",
+      width: "44px",
       height: "22px",
-      padding: "0 4px",
+      padding: "0 3px",
       border: "1px solid rgba(255, 255, 255, 0.20)",
       borderRadius: "4px",
       background: "rgba(0, 0, 0, 0.35)",
@@ -577,7 +578,8 @@ const fontBar = {
     const letterTrack = document.createElement("div");
     Object.assign(letterTrack.style, {
       position: "relative",
-      flex: "1 1 auto",
+      flex: "0 0 auto",
+      width: `${SLIDER_TRACK_WIDTH}px`,
       height: "18px",
       border: "1px solid rgba(255, 255, 255, 0.14)",
       borderRadius: "9px",
@@ -606,9 +608,9 @@ const fontBar = {
     letterInput.step = "1";
     letterInput.title = "输入字距后回车生效";
     Object.assign(letterInput.style, {
-      width: "56px",
+      width: "44px",
       height: "22px",
-      padding: "0 4px",
+      padding: "0 3px",
       border: "1px solid rgba(255, 255, 255, 0.20)",
       borderRadius: "4px",
       background: "rgba(0, 0, 0, 0.35)",
