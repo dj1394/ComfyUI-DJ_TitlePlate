@@ -548,9 +548,9 @@ const fontBar = {
     numberInput.step = "1";
     numberInput.title = "输入字号后回车生效";
     Object.assign(numberInput.style, {
-      width: "44px",
+      width: "36px",
       height: "22px",
-      padding: "0 3px",
+      padding: "0 2px",
       border: "1px solid rgba(255, 255, 255, 0.20)",
       borderRadius: "4px",
       background: "rgba(0, 0, 0, 0.35)",
@@ -608,9 +608,9 @@ const fontBar = {
     letterInput.step = "1";
     letterInput.title = "输入字距后回车生效";
     Object.assign(letterInput.style, {
-      width: "44px",
+      width: "36px",
       height: "22px",
-      padding: "0 3px",
+      padding: "0 2px",
       border: "1px solid rgba(255, 255, 255, 0.20)",
       borderRadius: "4px",
       background: "rgba(0, 0, 0, 0.35)",
@@ -639,7 +639,7 @@ const fontBar = {
       this.drag = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
-        startFontSize: Number(this.anchorNode.properties.fontSize) || 32,
+        startFontSize: Number(this.anchorNode.properties.fontSize) || 88,
       };
     });
 
@@ -862,7 +862,7 @@ class DJTitlePlate extends LGraphNode {
   constructor(title = DJTitlePlate.title) {
     super(title);
     this.properties = {
-      fontSize: 32,
+      fontSize: 88,
       fontFamily: "Arial",
       fontColor: "#ffffff",
       textAlign: "left",
