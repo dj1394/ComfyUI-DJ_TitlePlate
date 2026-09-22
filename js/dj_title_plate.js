@@ -321,13 +321,6 @@ style.textContent = `
     filter: blur(5px);
   }
 
-  /* 数字框：去掉上下翻动按钮（与横条拖动功能冗余），腾出空间让三位数完整显示 */
-  .dj-num-input { -moz-appearance: textfield; appearance: textfield; }
-  .dj-num-input::-webkit-outer-spin-button,
-  .dj-num-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
 `;
 
 // ── 字号/字距横条常量（与 DJ_GroupTitle 一致）──────────────
@@ -549,11 +542,8 @@ const fontBar = {
     track.appendChild(fill);
 
     const numberInput = document.createElement("input");
-    numberInput.type = "number";
-    numberInput.className = "dj-num-input";
-    numberInput.min = String(MIN_FONT_SIZE);
-    numberInput.max = String(MAX_FONT_SIZE);
-    numberInput.step = "1";
+    numberInput.type = "text"; // 用文本框替代 number：天生没有上下箭头按钮，三位数不吃字
+    numberInput.inputMode = "numeric";
     numberInput.title = "输入字号后回车生效";
     Object.assign(numberInput.style, {
       width: "36px",
@@ -568,8 +558,11 @@ const fontBar = {
       boxSizing: "border-box",
     });
 
-    // 去掉数字框上下翻动按钮（与横条拖动功能冗余），腾出的空间让三位数完整显示
-    numberInput.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
+    // 只允许输入数字和负号（文本框没有箭头按钮，这里做输入校验）
+    numberInput.addEventListener("input", () => {
+      const cleaned = numberInput.value.replace(/[^0-9-]/g, "");
+      if (cleaned !== numberInput.value) numberInput.value = cleaned;
+    });
     sizeRow.append(sizeLabel, track, numberInput);
 
     // ── 第二行：字距 ──
@@ -612,11 +605,8 @@ const fontBar = {
     letterTrack.appendChild(letterFill);
 
     const letterInput = document.createElement("input");
-    letterInput.type = "number";
-    letterInput.className = "dj-num-input";
-    letterInput.min = String(MIN_LETTER_SPACING);
-    letterInput.max = String(MAX_LETTER_SPACING);
-    letterInput.step = "1";
+    letterInput.type = "text"; // 字号框同款：文本框没有箭头按钮
+    letterInput.inputMode = "numeric";
     letterInput.title = "输入字距后回车生效";
     Object.assign(letterInput.style, {
       width: "36px",
@@ -631,8 +621,11 @@ const fontBar = {
       boxSizing: "border-box",
     });
 
-    // 字号框同款：去掉上下翻动按钮
-    letterInput.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
+    // 字号框同款：只允许输入数字和负号
+    letterInput.addEventListener("input", () => {
+      const cleaned = letterInput.value.replace(/[^0-9-]/g, "");
+      if (cleaned !== letterInput.value) letterInput.value = cleaned;
+    });
     letterRow.append(letterLabel, letterTrack, letterInput);
 
     panel.append(sizeRow, letterRow);
