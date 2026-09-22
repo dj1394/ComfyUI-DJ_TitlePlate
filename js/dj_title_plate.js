@@ -111,9 +111,9 @@ function createTitleEditor(node) {
   ta.style.cssText = [
     "width:100%",
     `height:${Math.max(30, node.size[1] * sc)}px`,
-    "outline:none;border:none;resize:none;box-sizing:border-box;",
-    `padding:0 ${padding * sc}px;`,
-    "background:transparent;color:transparent;-webkit-text-fill-color:transparent;",
+    "outline:none;border:1px solid rgba(255,255,255,0.35);resize:none;box-sizing:border-box;",
+    `padding:${padding * sc}px;`,
+    "background:rgba(0,0,0,0.25);color:transparent;-webkit-text-fill-color:transparent;",
     `caret-color:${fontColor === "#ffffff" ? "#00ff6a" : fontColor};`,
     `text-align:${align};`,
     `font: ${fontSize * sc}px ${fontFamily};`,
@@ -122,6 +122,28 @@ function createTitleEditor(node) {
   ].join("");
 
   container.appendChild(ta);
+
+  // 让容器宽度贴合文字内容（而非节点整体尺寸）
+  function fitContainerToText() {
+    const lines = ta.value.split("\n");
+    // 用 canvas measureText 算每行宽度
+    const mCtx = document.createElement("canvas").getContext("2d");
+    mCtx.font = `${fontSize * sc}px ${fontFamily}`;
+    let maxW = 0;
+    for (const line of lines) {
+      const w = mCtx.measureText(line || " ").width;
+      if (w > maxW) maxW = w;
+    }
+    const fittedW = Math.max(60, maxW + padding * sc * 2 + 8);
+    container.style.width = fittedW + "px";
+    // 高度也贴合：行数 × 行高 + 上下padding
+    const lineH = 1.3 * fontSize * sc;
+    container.style.height = (lines.length * lineH + padding * sc * 2) + "px";
+    ta.style.height = "100%";
+  }
+  fitContainerToText();
+  // 输入时实时调整
+  ta.addEventListener("input", fitContainerToText);
 
 
   node.editTextarea = container;
