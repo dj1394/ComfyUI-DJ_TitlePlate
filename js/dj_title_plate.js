@@ -196,8 +196,7 @@ function createTitleEditor(node) {
   ta.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); }, false);
   ta.addEventListener("keydown", (e) => {
     if (e.key === "Escape") removeTitleEditor(node);
-    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveClose(); }
-    else if (e.key === "Enter" && e.shiftKey) { /* 允许换行 */ }
+    else if (e.key === "Enter") { /* 直接回车换行，保存靠点空白处 */ }
     e.stopPropagation();
   });
 
@@ -1037,7 +1036,7 @@ class DJTitlePlate extends LGraphNode {
           <p>「大江 标题标签」节点允许你在画布任意位置添加浮动文字标签。</p>
           <ul>
             <li><p><strong>单击标签：</strong>下方弹出字号/字距横条，上下两行分别左右拖动即可改字体大小和字距（也可在右侧数字框输入精确值，回车生效）；选中时文字外有 50% 灰色线框。</p></li>
-            <li><p><strong>双击标签：</strong>原地编辑文字内容（Enter 保存，Esc 取消，Shift+Enter 换行）。</p></li>
+            <li><p><strong>双击标签：</strong>原地编辑文字内容（Enter 换行，点空白处保存，Esc 取消）。</p></li>
             <li><p><strong>样式调整：</strong>右键菜单「属性」打开属性面板，可改字体家族、颜色、对齐方式、背景色、内边距、圆角、旋转角度。</p></li>
             <li><p><strong>钉住：</strong>右键菜单选择「钉住」可以让标签固定在工作流上，点击穿透。再次右键可以取消钉住。</p></li>
             <li><p><strong>颜色用十六进制</strong>，如 <code>#FFFFFF</code> 白色、<code>#660000</code> 深红。第 7-8 位控制透明度，如 <code>#FFFFFF88</code> 半透明白。</p></li>
