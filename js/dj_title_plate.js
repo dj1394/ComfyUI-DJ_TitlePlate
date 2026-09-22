@@ -127,6 +127,8 @@ function createTitleEditor(node) {
   node.editTextarea = container;
   node._editTaEl = ta;
   node.isEditing = true;
+  // 给 Vue DOM 层节点 wrapper 打标记，CSS 据此消除边框
+  if (node._vueDblEl) node._vueDblEl.setAttribute("data-dj-title-editing", "true");
   document.body.appendChild(container);
 
   // 进入编辑直接输入，不全选（避免选中高亮和画布文字错位产生重影）
@@ -235,6 +237,8 @@ function removeTitleEditor(node) {
   if (node._docClickHandler) { document.removeEventListener("click", node._docClickHandler, true); node._docClickHandler = null; }
   if (node._docMouseDown) { document.removeEventListener("mousedown", node._docMouseDown, true); node._docMouseDown = null; }
   if (node.editTextarea) { node.editTextarea.remove(); node.editTextarea = null; }
+  // 去掉编辑标记
+  if (node._vueDblEl) node._vueDblEl.removeAttribute("data-dj-title-editing");
   node._editTaEl = null;
   node.isEditing = false;
 }
@@ -245,6 +249,24 @@ style.textContent = `
   /* 默认隐藏虚框（showBorder=false）：外层 + 所有子元素 */
   .litegraph-node[data-dj-noborder="true"],
   .litegraph-node[data-dj-noborder="true"] * {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  /* 编辑状态下：容器、textarea、以及任何 DOM 层边框全部干掉 */
+  [data-dj-title-edit],
+  [data-dj-title-edit] *,
+  [data-dj-title-edit] textarea,
+  [data-dj-title-edit] div {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  /* ComfyUI Vue 节点 wrapper 在编辑/选中时可能加的边框 */
+  .litegraph-node[data-dj-title-editing="true"],
+  .litegraph-node[data-dj-title-editing="true"] * {
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
