@@ -263,13 +263,6 @@ function removeTitleEditor(node) {
 // ── CSS 注入 ──────────────────────────────────────────────
 const style = document.createElement("style");
 style.textContent = `
-  /* 默认隐藏虚框（showBorder=false）：外层 + 所有子元素 */
-  .litegraph-node[data-dj-noborder="true"],
-  .litegraph-node[data-dj-noborder="true"] * {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-  }
   /* 编辑状态下：容器、textarea、以及任何 DOM 层边框全部干掉 */
   [data-dj-title-edit],
   [data-dj-title-edit] *,
@@ -347,7 +340,7 @@ const fontBar = {
 
   clampSize(value) {
     const n = Number(value);
-    return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(Number.isFinite(n) ? n : 32)));
+    return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(Number.isFinite(n) ? n : 88)));
   },
 
   clampSpacing(value) {
@@ -744,7 +737,6 @@ const fontBar = {
     node.setDirtyCanvas?.(true, true);
     this.panel.style.display = "flex";
     this.positionPanel();
-    console.info("[DJ_TitlePlate] 字号横条已弹出，fontSize =", node.properties.fontSize);
     this.startFollow();
   },
 
@@ -877,7 +869,6 @@ class DJTitlePlate extends LGraphNode {
       borderRadius: 0,
       angle: 0,
       letterSpacing: 0, // 字距 px
-      showBorder: false, // 默认不显示虚框
     };
     this.color = "#fff0";
     this.bgcolor = "#fff0";
@@ -1001,37 +992,15 @@ class DJTitlePlate extends LGraphNode {
     return true;
   }
 
-  // 同步虚框显示状态（canvas 层面，draw 里处理）
-  _syncBorderVisibility() {
-    this.setDirtyCanvas?.(true, true);
-  }
-
-  // 上屏后绑 Vue DOM 层 dblclick（主路）+ 虚框状态
+  // 上屏后绑 Vue DOM 层 dblclick（主路）
   onNodeCreated() {
     attachVueDblClick(this);
-    // 轮询等 Vue DOM 渲染完再同步虚框状态
-    let tries = 0;
-    const timer = setInterval(() => {
-      if (++tries > 50 || this._removed) { clearInterval(timer); return; }
-      this._syncBorderVisibility();
-      if (this._vueDblEl) clearInterval(timer);
-    }, 100);
-  }
-
-  onPropertyChanged(name, value) {
-    if (name === "showBorder") {
-      this._syncBorderVisibility();
-    }
   }
 
   onRemoved() {
     detachVueDblClick(this);
     fontBar.clearSelected(this); // 清掉选中态线框标记
     if (this.isEditing) removeTitleEditor(this);
-  }
-
-  inResizeCorner(x, y) {
-    return this.resizable;
   }
 
   // 右键菜单加帮助
