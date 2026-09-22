@@ -329,7 +329,7 @@ const MAX_FONT_SIZE = 300;
 const FONT_SLIDER_PIXELS_PER_STEP = 2; // 拖动速率：每 2 屏幕像素 = 1 号字
 const FONT_SLIDER_VISUAL_MAX = 96;     // 滑块填充视觉上限（超过后不再变长）
 const MIN_LETTER_SPACING = -10;        // 字距范围 px
-const MAX_LETTER_SPACING = 50;
+const MAX_LETTER_SPACING = 100;
 const LETTER_SLIDER_PIXELS_PER_STEP = 2; // 每 2 屏幕像素 = 1px 字距
 const LETTER_SLIDER_VISUAL_MAX = 20;    // 滑块填充视觉上限（超过后不再变长）
 const FONT_BAR_WIDTH = 236;            // 横条宽度
