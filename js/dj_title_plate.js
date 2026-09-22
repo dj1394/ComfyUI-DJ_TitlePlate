@@ -932,11 +932,14 @@ class DJTitlePlate extends LGraphNode {
       ctx.fillRect(0, 0, this.size[0], this.size[1]);
     }
 
-    // 选中状态（字号横条弹出时）：文字外画 50% 透明度灰色线框
+    // 选中状态（字号横条弹出时）：文字外画 50% 透明度灰色线框（圆角与横条一致 6px）
     if (this._fontBarOpen) {
       ctx.strokeStyle = "rgba(128,128,128,0.5)";
       ctx.lineWidth = 1;
-      ctx.strokeRect(0.5, 0.5, this.size[0] - 1, this.size[1] - 1);
+      const r = Math.min(6, this.size[0] / 2, this.size[1] / 2);
+      ctx.beginPath();
+      ctx.roundRect(0.5, 0.5, this.size[0] - 1, this.size[1] - 1, [r]);
+      ctx.stroke();
     }
 
     // 文字：水平按 textAlign，垂直始终在虚框内居中
