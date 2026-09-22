@@ -86,7 +86,7 @@ function createTitleEditor(node) {
 
   const container = document.createElement("div");
   container.dataset.djTitleEdit = String(node.id);
-  container.style.cssText = `position:fixed;left:${vr.left + (node.pos[0] + ox0) * sc}px;top:${vr.top + (node.pos[1] + oy0) * sc}px;width:${Math.max(60, node.size[0] * sc)}px;z-index:100000;border:1px dashed rgba(74,158,255,0.5);background:rgba(0,0,0,0.15);`;
+  container.style.cssText = `position:fixed;left:${vr.left + (node.pos[0] + ox0) * sc}px;top:${vr.top + (node.pos[1] + oy0) * sc}px;width:${Math.max(60, node.size[0] * sc)}px;z-index:100000;border:none;outline:none;background:transparent;box-shadow:none;`;
   container.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); }, false);
 
   // 滚轮转发给画布（在面板空白处滚动 = 缩放画布）
