@@ -24,18 +24,19 @@ class DJ_TitlePlate:
 
     RETURN_TYPES = ()
     FUNCTION = "main"
-    CATEGORY = "大江"
+    CATEGORY = "DJ/TitlePlate"
     OUTPUT_NODE = False
 
     def main(self, text):
         return ()
 
 
+# 五名规则：单节点包，包名即功能 → Node ID = 文件夹名，不加后缀
 NODE_CLASS_MAPPINGS = {
-    "DJ_TitlePlate": DJ_TitlePlate,
+    "ComfyUI-DJ_TitlePlate": DJ_TitlePlate,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DJ_TitlePlate": "大江 标题标签",
+    "ComfyUI-DJ_TitlePlate": "ComfyUI-DJ_TitlePlate",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

@@ -851,9 +851,10 @@ function showHelpDialog(node, content) {
 
 // ── 大江 标题标签 节点 ────────────────────────────────────────
 class DJTitlePlate extends LGraphNode {
-  static title = "大江 标题标签";
-  static type = "DJ_TitlePlate";
-  static category = "大江";
+  // 五名规则：Node ID / 显示名 = 文件夹名，CATEGORY = DJ/TitlePlate
+  static title = "ComfyUI-DJ_TitlePlate";
+  static type = "ComfyUI-DJ_TitlePlate";
+  static category = "DJ/TitlePlate";
   static collapsable = false;
   static title_mode = LiteGraph.NO_TITLE;
 
