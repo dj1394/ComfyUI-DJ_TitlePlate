@@ -1,4 +1,4 @@
-![预览图](预览图.png)
+![预览图](ComfyUI-DJ_TitlePlate.png)
 
 # ComfyUI-DJ_TitlePlate（大江 标题标签 · 画布浮动文字标签）
 
