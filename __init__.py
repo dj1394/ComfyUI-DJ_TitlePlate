@@ -36,7 +36,7 @@ NODE_CLASS_MAPPINGS = {
     "ComfyUI-DJ_TitlePlate": DJ_TitlePlate,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ComfyUI-DJ_TitlePlate": "ComfyUI-DJ_TitlePlate_标题",
+    "ComfyUI-DJ_TitlePlate": "ComfyUI-DJ_TitlePlate_标题_标签",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
